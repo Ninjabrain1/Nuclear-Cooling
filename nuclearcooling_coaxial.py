@@ -268,10 +268,10 @@ def printSolutionData(Hw, Hpb):
 
 # Derivative of water enthalpy with respect to z
 def dHWdz(TPb, TW, HW):
-	return (TPb-TW)*Ahx/(h*mDotW)/getReff(HW, TPb)
+	return (TPb-TW)/(mDotW*getReff(HW, TPb))*n
 # Derivative of lead enthalpy with respect to z
 def dHPbdz(TPb, TW, HW):
-	return (TW-TPb)*Ahx/(h*mDotPb)/getReff(HW, TPb)
+	return (TW-TPb)/(mDotPb*getReff(HW, TPb))*n
 
 # Main function
 def simulate():

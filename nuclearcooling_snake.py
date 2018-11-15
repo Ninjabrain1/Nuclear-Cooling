@@ -21,24 +21,24 @@ import matplotlib.pyplot as plt
 # Thermal conductivity of tube material [W/(m*K)]
 kss = 20
 # Velocity of water at inflow [m/s]
-uW = 4
+uW = 3
 # Velocity of lead at inflow [m/s]
-uPb = -2
+uPb = -0.5
 # Height of reactor [m]
-h = 1.5
+h = 0.64
 # Diameter of reactor [m]
 D = 0.5
 # Number of tubes
-n = 8
+n = 30
 # Inner diameter of tubes [m]
-di = 10*0.001
+di = 8*0.001
 # Thickness of tubes [m]
 dd = 1*0.001
 # "Slope" of the tubes, the x direction is any direction perpendicular to z.
 # For example, dxdz=0 gives coaxial flow (will be inaccurate because the nusselt
 # number assumes perpendicular flow), dxdz=1 gives 45 degree tubes, and so on.
 # The value of dxdz should be >> 1.
-dxdz = 200
+dxdz = 10
 # Lead inflow temperature [C]
 T0Pb = 550
 # Water inflow temperature (steam if above 342.11C, otherwise liquid) [C]
@@ -87,14 +87,16 @@ ri = di/2
 do = di+2*dd
 # Outer radius of tubes [m]
 ro = do/2
+# Change of l with respect to z
+dldz = (1 + dxdz**2)**0.5
 # Total length of one tube
-l = (1 + dxdz**2)**0.5 * h
+l = dldz*h
 # Total heat exchange area [m^2]
 Ahx = do*pi*l*n
 # Water flow total cross sectional area [m^2]
 Aw = ri*ri*pi*n
 # Lead flow cross sectional area [m^2]
-Apb = R*R*pi - ro*ro*pi*n*(1 + dxdz**2)**0.5
+Apb = R*R*pi - ro*ro*pi*n*dldz
 # Water mass flow rate [kg/s]
 mDotW = uW*Aw*rhoW
 # Lead mass flow rate [kg/s]
@@ -287,6 +289,7 @@ def printSolutionData(Hw, Hpb):
 	print("Data for simulation with N =", N, "cycles =", cycles)
 	print("Reactor dimensions: height =", h, "m, diameter =", D, "m")
 	print("Cross sectional flow areas: water =", Aw, "m^2, lead =", Apb, "m^2")
+	print("Fraction of volume taken up by tubes (and their contents):", ro*ro/(R*R)*dldz*n)
 	print("Tube data: amount =", n, "tubes, outer diameter =", do*1000, "mm, thickness =", dd*1000, "mm, conductivity =", kss, "W/mK")
 	print("Water temperatures: inflow =", getTW(Hw[0]), "C, outflow =", getTW(Hw[N-1]), "C")
 	print("Lead temperatures: inflow =", getTPb(Hpb[N-1]), "C, outflow =", getTPb(Hpb[0]), "C")
@@ -300,10 +303,10 @@ def printSolutionData(Hw, Hpb):
 
 # Derivative of water enthalpy with respect to z
 def dHWdz(TPb, TW, HW):
-	return (TPb-TW)*Ahx/(h*mDotW)/getReff(HW, TPb)
+	return (TPb-TW)*dldz/(mDotW*getReff(HW, TPb))*n
 # Derivative of lead enthalpy with respect to z
 def dHPbdz(TPb, TW, HW):
-	return (TW-TPb)*Ahx/(h*mDotPb)/getReff(HW, TPb)
+	return (TW-TPb)*dldz/(mDotPb*getReff(HW, TPb))*n
 
 # Main function
 def simulate():
@@ -399,8 +402,9 @@ def checkSolution(Hw, Hpb):
 
 simulate()
 
-# PW = [getMuW(H) for H in HWsamp]
-# plt.plot(HWsamp, PW)
+# Hinterval = np.linspace(HWsamp[0], HWsamp[len(HWsamp)-1], 1000)
+# PW = [getReff(H, 540) for H in Hinterval]
+# plt.plot(Hinterval, PW)
 # plt.show()
 
-#plotEnthalpyData()
+# plotEnthalpyData()
