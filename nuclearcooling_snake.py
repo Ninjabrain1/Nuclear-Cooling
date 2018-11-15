@@ -21,15 +21,15 @@ import matplotlib.pyplot as plt
 # Thermal conductivity of tube material [W/(m*K)]
 kss = 20
 # Velocity of water at inflow [m/s]
-uW = 3
+uW = 3.8
 # Velocity of lead at inflow [m/s]
-uPb = -0.5
+uPb = -0.3
 # Height of reactor [m]
 h = 0.64
 # Diameter of reactor [m]
 D = 0.5
 # Number of tubes
-n = 30
+n = 20
 # Inner diameter of tubes [m]
 di = 8*0.001
 # Thickness of tubes [m]
@@ -38,7 +38,7 @@ dd = 1*0.001
 # For example, dxdz=0 gives coaxial flow (will be inaccurate because the nusselt
 # number assumes perpendicular flow), dxdz=1 gives 45 degree tubes, and so on.
 # The value of dxdz should be >> 1.
-dxdz = 10
+dxdz = 20
 # Lead inflow temperature [C]
 T0Pb = 550
 # Water inflow temperature (steam if above 342.11C, otherwise liquid) [C]
@@ -343,8 +343,8 @@ def simulate():
 			Tw[i] = getTW(Hw[i])
 			lastDeltaTw = Tw[i] - lastTw
 		for i in range(N-2, -1, -1):
-			T = Tpb[i] + lastDeltaTpb
-			Hpb[i] = Hpb[i+1] - dHPbdz(T, Tw[i], Hw[i])*dz
+			T = Tpb[i+1] + lastDeltaTpb
+			Hpb[i] = Hpb[i+1] - dHPbdz(T, Tw[i+1], Hw[i+1])*dz
 			lastTpb = Tpb[i]
 			Tpb[i] = getTPb(Hpb[i])
 			lastDeltaTpb = Tpb[i] - lastTpb
@@ -389,13 +389,15 @@ def checkSolution(Hw, Hpb):
 		deltaHW = Hw[i] - Hw[i-1]
 		discrepancy = deltaHW - dHWdz(Tpb[i], Tw[i], Hw[i])*dz
 		discrepancyQW.append(getQW(discrepancy)*1e6)
+	# 	discrepancyQPb.append(deltaHW)
 	for i in range(1, N):
 		deltaHPb = Hpb[i] - Hpb[i-1]
 		discrepancy = deltaHPb - dHPbdz(Tpb[i], Tw[i], Hw[i])*dz
 		discrepancyQPb.append(getQPb(discrepancy)*1e6)
 	# z = np.linspace(0, h, N-1)
-	# plt.plot(z, discrepancyQW)
-	# plt.plot(z, discrepancyQPb)
+	# plt.plot(z, discrepancyQW, label="water")
+	# plt.plot(z, discrepancyQPb, label="lead")
+	# plt.legend()
 	# plt.show()
 	return (np.sum([abs(d) for d in discrepancyQW]) + np.sum([abs(d) for d in discrepancyQPb]))/N
 	
