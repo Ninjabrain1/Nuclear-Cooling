@@ -1,8 +1,13 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-# 	Differences from coaxial steam generator:
-# Total length of one tube is no longer equal to h, variable l denotes
+# Differences from coaxial steam generator:
+# 	The geometry of this reactor are tubes going from z=0 to z=h with
+# a slope of dxdz at all times, where x is any direction perpendicular
+# to z (the direction of x can change). This models, for example, tubes
+# spiraling upwards with constant slope or approximates tubes zig-zagging
+# upwards.
+# 	Total length of one tube is no longer equal to h, variable l denotes
 # the total length of one tube. l is calculated from h and dxdz, where
 # dxdz is a parameter that needs to be provided. It is assumed that the
 # slope of the tubes is approximately constant and that dxdz >> 1.
@@ -52,6 +57,8 @@ cycles = 20
 printData = True
 # If True, will plot every intermediate state, otherwise it will just plot the final, most accurate, state
 plotIntermediates = False
+# If true will print a progress bar as it's simulating
+progressBar = True
 
 
 ## PHYSICAL CONSTANTS ##
@@ -300,6 +307,8 @@ def dHPbdz(TPb, TW, HW):
 
 # Main function
 def simulate():
+	if progressBar:
+		print('[', end='')
 	# Water specific enthalpy at inflow (z=0)
 	H0W = getHW(T0W)
 	# Lead specific enthalpy at inflow (z=h)
@@ -339,6 +348,11 @@ def simulate():
 		if plotIntermediates:
 			tempsW += [Tw.copy()]
 			tempsPb += [Tpb.copy()]
+		if progressBar:
+			if (j*10)%cycles == 0:
+				print('=', end='', flush=True)
+	if progressBar:
+		print(']')
 
 	if printData:
 		printSolutionData(Hw, Hpb)
