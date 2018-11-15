@@ -43,7 +43,7 @@ dxdz = 20
 T0Pb = 550
 # Water inflow temperature (steam if above 342.11C, otherwise liquid) [C]
 T0W = 100
-# Lowest allowed lead temperature
+# Lowest alowed lead temperature
 TminPb = 350
 
 
@@ -52,13 +52,17 @@ TminPb = 350
 # Number of length elements
 N = 1501
 # Amount times to compute temperatures, for each iteration the calculation becomes more accurate
-cycles = 20
+cycles = 40
 # If True, print useful data about the solution after the simulation has completed
 printData = True
 # If True, will plot every intermediate state, otherwise it will just plot the final, most accurate, state
 plotIntermediates = False
-# If true will print a progress bar as it's simulating
+# If True will print a progress bar as it's simulating
 progressBar = True
+# If True will plot the "convegence error", a low error means the solution has converged
+# (not necessarily to the right solution). A systematic error means cycles should be increased,
+# a noisy error means that the amount of cycles is fine.
+plotError = False
 
 
 ## PHYSICAL CONSTANTS ##
@@ -290,7 +294,8 @@ def printSolutionData(Hw, Hpb):
 	print("Reactor dimensions: height =", h, "m, diameter =", D, "m")
 	print("Cross sectional flow areas: water =", Aw, "m^2, lead =", Apb, "m^2")
 	print("Fraction of volume taken up by tubes (and their contents):", ro*ro/(R*R)*dldz*n)
-	print("Tube data: amount =", n, "tubes, outer diameter =", do*1000, "mm, thickness =", dd*1000, "mm, conductivity =", kss, "W/mK")
+	print("Tube data: amount =", n, "tubes, outer diameter =", do*1000, "mm, thickness =", dd*1000, "mm")
+	print("           conductivity =", kss, "W/mK, total length of 1 tube =", l, "m")
 	print("Water temperatures: inflow =", getTW(Hw[0]), "C, outflow =", getTW(Hw[N-1]), "C")
 	print("Lead temperatures: inflow =", getTPb(Hpb[N-1]), "C, outflow =", getTPb(Hpb[0]), "C")
 	print("Mass flow rates (positive z): water =", mDotW, "kg/s, lead =", mDotPb, "kg/s")
@@ -352,7 +357,7 @@ def simulate():
 			tempsW += [Tw.copy()]
 			tempsPb += [Tpb.copy()]
 		if progressBar:
-			if (j*10)%cycles == 0:
+			if j%(cycles/19) <= 1:
 				print('=', end='', flush=True)
 	if progressBar:
 		print(']')
@@ -389,16 +394,16 @@ def checkSolution(Hw, Hpb):
 		deltaHW = Hw[i] - Hw[i-1]
 		discrepancy = deltaHW - dHWdz(Tpb[i], Tw[i], Hw[i])*dz
 		discrepancyQW.append(getQW(discrepancy)*1e6)
-	# 	discrepancyQPb.append(deltaHW)
 	for i in range(1, N):
 		deltaHPb = Hpb[i] - Hpb[i-1]
 		discrepancy = deltaHPb - dHPbdz(Tpb[i], Tw[i], Hw[i])*dz
 		discrepancyQPb.append(getQPb(discrepancy)*1e6)
-	# z = np.linspace(0, h, N-1)
-	# plt.plot(z, discrepancyQW, label="water")
-	# plt.plot(z, discrepancyQPb, label="lead")
-	# plt.legend()
-	# plt.show()
+	if plotError:
+		z = np.linspace(0, h, N-1)
+		plt.plot(z, discrepancyQW, label="water")
+		plt.plot(z, discrepancyQPb, label="lead")
+		plt.legend()
+		plt.show()
 	return (np.sum([abs(d) for d in discrepancyQW]) + np.sum([abs(d) for d in discrepancyQPb]))/N
 	
 
