@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+# HELLO FROM EMASTR
 # Differences from coaxial steam generator:
 # 	The geometry of this reactor are tubes going from z=0 to z=h with
 # a slope of dxdz at all times, where x is any direction perpendicular
