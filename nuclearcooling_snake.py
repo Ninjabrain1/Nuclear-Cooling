@@ -313,10 +313,9 @@ def getConvHtPb(T):
 	return getNusseltPb(T)*getLambdaPb(T)/do
 
 # Constant factors used when calculating Reff
-if True:
-	cf1 = 1/(2*pi*ri)
-	cf2 = np.log(ro/ri)/(2*pi*kss)
-	cf3 = 1/(2*pi*ro)
+cf1 = 1/(2*pi*ri)
+cf2 = np.log(ro/ri)/(2*pi*kss)
+cf3 = 1/(2*pi*ro)
 def getReff(HW, TPb):
 	"""Returns the overall thermal resistance coefficient, Reff, [mK/W] for given water and lead temp [C]"""
 	return cf1/getConvHtW(HW) + cf2 + cf3/getConvHtPb(TPb)
