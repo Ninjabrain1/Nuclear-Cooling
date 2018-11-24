@@ -1,7 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-# HELLO FROM EMASTR
 # Differences from coaxial steam generator:
 # 	The geometry of this reactor are tubes going from z=0 to z=h with
 # a slope of dxdz at all times, where x is any direction perpendicular
@@ -21,29 +20,31 @@ import matplotlib.pyplot as plt
 
 # Thermal conductivity of tube material [W/(m*K)]
 kss = 20
-# Velocity of water at inflow [m/s]
-uW = 3.8
-# Velocity of lead at inflow [m/s]
-uPb = -0.3
+# Desired thermal power [W]
+Q = 14e6
 # Height of reactor [m]
 h = 0.64
 # Diameter of reactor [m]
-D = 0.5
+D = 0.4
 # Number of tubes
 n = 20
 # Inner diameter of tubes [m]
-di = 8*0.001
+di = 9*0.001
 # Thickness of tubes [m]
 dd = 1*0.001
 # "Slope" of the tubes, the x direction is any direction perpendicular to z.
 # For example, dxdz=0 gives coaxial flow (will be inaccurate because the nusselt
 # number assumes perpendicular flow), dxdz=1 gives 45 degree tubes, and so on.
 # The value of dxdz should be >> 1.
-dxdz = 20
+dxdz = 22
 # Lead inflow temperature [C]
 T0Pb = 550
 # Water inflow temperature (steam if above 342.11C, otherwise liquid) [C]
 T0W = 100
+# Desired temperature of water at outflow [C]
+T1W = 500
+# Desired temperature of lead at outflow [C]
+T1Pb = 500
 # Lowest alowed lead temperature
 TminPb = 350
 
@@ -51,9 +52,9 @@ TminPb = 350
 ## SIMULATION PARAMETERS ##
 
 # Number of length elements
-N = 1501
+N = 200
 # Amount times to compute temperatures, for each iteration the calculation becomes more accurate
-cycles = 40
+cycles = 20
 # If True, print useful data about the solution after the simulation has completed
 printData = True
 # If True, will plot every intermediate state, otherwise it will just plot the final, most accurate, state
@@ -63,7 +64,7 @@ progressBar = True
 # If True will plot the "convegence error", a low error means the solution has converged
 # (not necessarily to the right solution). A systematic error means cycles should be increased,
 # a noisy error means that the amount of cycles is fine.
-plotError = False
+plotError = True
 
 
 ## PHYSICAL CONSTANTS ##
@@ -102,10 +103,57 @@ Ahx = do*pi*l*n
 Aw = ri*ri*pi*n
 # Lead flow cross sectional area [m^2]
 Apb = R*R*pi - ro*ro*pi*n*dldz
+# Difference in water enthalpy between outflow and inflow
+deltaHW = 0
+# Difference in lead enthalpy between outflow and inflow
+deltaHPb = 0
 # Water mass flow rate [kg/s]
-mDotW = uW*Aw*rhoW
+#mDotW = uW*Aw*rhoW
+mDotW = 0
 # Lead mass flow rate [kg/s]
-mDotPb = uPb*Apb*rhoPb
+#mDotPb = uPb*Apb*rhoPb
+mDotPb = 0
+# Velocity of water at inflow [m/s]
+uW = 0
+# Velocity of lead at inflow [m/s]
+uPb = 0
+
+def updateConstants():
+	global dz, R, ri, do, ro, dldz, l, Ahx, Aw, Apb, deltaHPb, deltaHW, mDotPb, mDotW, uPb, uW
+	# Step size [m]
+	dz = h/(N - 1)
+	# Radius of reactor [m]
+	R = D/2
+	# Inner radius of tubes [m]
+	ri = di/2
+	# Outer diameter of tubes [m]
+	do = di+2*dd
+	# Outer radius of tubes [m]
+	ro = do/2
+	# Change of l with respect to z
+	dldz = (1 + dxdz**2)**0.5
+	# Total length of one tube
+	l = dldz*h
+	# Total heat exchange area [m^2]
+	Ahx = do*pi*l*n
+	# Water flow total cross sectional area [m^2]
+	Aw = ri*ri*pi*n
+	# Lead flow cross sectional area [m^2]
+	Apb = R*R*pi - ro*ro*pi*n*dldz
+	# Difference in water enthalpy between outflow and inflow
+	deltaHW = getHW(T1W)-getHW(T0W)
+	# Difference in lead enthalpy between outflow and inflow
+	deltaHPb = getHPb(T1Pb)-getHPb(T0Pb)
+	# Water mass flow rate [kg/s]
+	#mDotW = uW*Aw*rhoW
+	mDotW = Q/deltaHW
+	# Lead mass flow rate [kg/s]
+	#mDotPb = uPb*Apb*rhoPb
+	mDotPb = Q/deltaHPb
+	# Velocity of water at inflow [m/s]
+	uW = mDotW/Aw/rhoW
+	# Velocity of lead at inflow [m/s]
+	uPb = mDotPb/Apb/rhoPb
 
 def lerp(x, xList, yList):
 	"""Returns an approximation of y(x), xList and yList should contain sampled values from y(x).
@@ -265,9 +313,10 @@ def getConvHtPb(T):
 	return getNusseltPb(T)*getLambdaPb(T)/do
 
 # Constant factors used when calculating Reff
-cf1 = 1/(2*pi*ri)
-cf2 = np.log(ro/ri)/(2*pi*kss)
-cf3 = 1/(2*pi*ro)
+if True:
+	cf1 = 1/(2*pi*ri)
+	cf2 = np.log(ro/ri)/(2*pi*kss)
+	cf3 = 1/(2*pi*ro)
 def getReff(HW, TPb):
 	"""Returns the overall thermal resistance coefficient, Reff, [mK/W] for given water and lead temp [C]"""
 	return cf1/getConvHtW(HW) + cf2 + cf3/getConvHtPb(TPb)
@@ -299,7 +348,6 @@ def printSolutionData(Hw, Hpb):
 	print("Geometry:             Number of tubes:     {0}, slope of tubes dx/dz: {1:.1f}".format(n,dxdz))
 	print("Material properties:  Conductivity: {0} W/mK".format(kss))
 	print("")
-	print("Solution discrepancy (lower is better): {0} W".format(checkSolution(Hw, Hpb)))
 	Qw = getQW(Hw[N-1]) - getQW(Hw[0])
 	Qpb = getQPb(Hpb[N-1]) - getQPb(Hpb[0])
 	print("")
@@ -310,7 +358,7 @@ def printSolutionData(Hw, Hpb):
 	print("Mass flow (pos z)             {0:.3f}       {1:.3f}               kg/s      ".format(mDotW, mDotPb))
 	print("Inflow vel. (pos z)           {0:.3f}       {1:.3f}               m/s       ".format(uW, uPb))
 	print("Thermal pwr gain              {0:.3f}       {1:.3f}               MW        ".format(Qw, Qpb))
-
+	print("Solution discrepancy (lower is better): 10^{0:.0f} W".format(np.log10(checkSolution(Hw, Hpb))))
 ##### SIMULATION #####
 
 # Derivative of water enthalpy with respect to z
@@ -321,7 +369,7 @@ def dHPbdz(TPb, TW, HW):
 	return (TW-TPb)*dldz/(mDotPb*getReff(HW, TPb))*n
 
 # Main function
-def simulate():
+def simulate(printSol = printData):
 	if progressBar:
 		print('[', end='')
 	# Water specific enthalpy at inflow (z=0)
@@ -369,7 +417,7 @@ def simulate():
 	if progressBar:
 		print(']')
 
-	if printData:
+	if printSol:
 		printSolutionData(Hw, Hpb)
 	
 	z = np.linspace(0, h, N)
@@ -377,17 +425,19 @@ def simulate():
 		for j in range(len(tempsW)-1):
 			plt.plot(z, tempsPb[j])
 			plt.plot(z, tempsW[j])
-	plt.plot(z, Tpb, label="Final lead temp [C]")
-	plt.plot(z, Tw, label="Final water temp [C]")
-	# Qw = [mDotW*(H - Hw[0])*1e-6 for H in Hw]
-	# Qpb = [mDotPb*(H - Hpb[0])*1e-6 for H in Hpb]
-	# plt.plot(z, Qpb, label="Final lead energy flow [MW]")
-	# plt.plot(z, Qw, label="Final water energy flow [MW]")
-	plt.legend()
-	plt.xlabel("z")
-	plt.ylabel("Temperature [C]")
-	plt.title("Water inflow at z=0, lead inflow at z=h=" + str(h))
-	plt.show()
+	if printSol:
+		plt.plot(z, Tpb, label="Final lead temp [C]")
+		plt.plot(z, Tw, label="Final water temp [C]")
+		# Qw = [mDotW*(H - Hw[0])*1e-6 for H in Hw]
+		# Qpb = [mDotPb*(H - Hpb[0])*1e-6 for H in Hpb]
+		# plt.plot(z, Qpb, label="Final lead energy flow [MW]")
+		# plt.plot(z, Qw, label="Final water energy flow [MW]")
+		plt.legend()
+		plt.xlabel("z")
+		plt.ylabel("Temperature [C]")
+		plt.title("Water inflow at z=0, lead inflow at z=h=" + str(h))
+		plt.show()
+	return Tw[N-1], Hw, Hpb, Tw, Tpb
 
 def checkSolution(Hw, Hpb):
 	"""Checks how well the given solution satisfied the differential equaitons. Returns a 
@@ -412,9 +462,51 @@ def checkSolution(Hw, Hpb):
 		plt.legend()
 		plt.show()
 	return (np.sum([abs(d) for d in discrepancyQW]) + np.sum([abs(d) for d in discrepancyQPb]))/N
-	
 
-simulate()
+def solutionIsValid(Hw, Hpb, Tw, Tpb):
+	tol = 0.001
+	if Aw <= 0 or Apb <= 0 or ro*ro/(R*R)*dldz*n > 0.5:
+		return False
+	if abs(Tw[-1]/T1W - 1) > tol:
+		return False
+	if abs(Tpb[0]/T1Pb - 1) > tol:
+		return False
+	if uW < 1 or uW > 3 or uPb < -3 or uPb > -1:
+		return False
+	return True
+
+def searchFordxdz():
+	global dxdz
+	for i in range(10):
+		updateConstants()
+		TW, Hw, Hpb, Tw, Tpb = simulate(False)
+		diff = TW - T1W
+		dxdz -= diff/10
+	return solutionIsValid(Hw, Hpb, Tw, Tpb)
+
+def parameterAnalysis():
+	global D, di, n
+	dim = 5
+	listi = []
+	for i in range(dim):
+		n = 20 + i
+		listj = []
+		for j in range(dim):
+			di = (5 + i)*0.001
+			listk = []
+			for k in range(dim):
+				D = 0.4 + i*0.2/(dim - 1)
+				valid = searchFordxdz()
+			listj.append(listk)
+		listi.append(listj)
+
+
+
+
+searchFordxdz()
+print(dxdz)
+updateConstants()
+simulate(True)
 
 # Hinterval = np.linspace(HWsamp[0], HWsamp[len(HWsamp)-1], 1000)
 # PW = [getReff(H, 540) for H in Hinterval]
