@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
 # Differences from coaxial steam generator:
 # 	The geometry of this reactor are tubes going from z=0 to z=h with
@@ -368,8 +369,8 @@ def dHPbdz(TPb, TW, HW):
 	return (TW-TPb)*dldz/(mDotPb*getReff(HW, TPb))*n
 
 # Main function
-def simulate(printSol = printData):
-	if progressBar:
+def simulate(printSol = printData, prgBar = progressBar):
+	if prgBar:
 		print('[', end='')
 	# Water specific enthalpy at inflow (z=0)
 	H0W = getHW(T0W)
@@ -410,10 +411,10 @@ def simulate(printSol = printData):
 		if plotIntermediates:
 			tempsW += [Tw.copy()]
 			tempsPb += [Tpb.copy()]
-		if progressBar:
+		if prgBar:
 			if j%(cycles/19) <= 1:
 				print('=', end='', flush=True)
-	if progressBar:
+	if prgBar:
 		print(']')
 
 	if printSol:
@@ -465,20 +466,24 @@ def checkSolution(Hw, Hpb):
 def solutionIsValid(Hw, Hpb, Tw, Tpb):
 	tol = 0.001
 	if Aw <= 0 or Apb <= 0 or ro*ro/(R*R)*dldz*n > 0.5:
+		print("A")
 		return False
 	if abs(Tw[-1]/T1W - 1) > tol:
+		print("B")
 		return False
 	if abs(Tpb[0]/T1Pb - 1) > tol:
+		print("C")
 		return False
 	if uW < 1 or uW > 3 or uPb < -3 or uPb > -1:
+		print("D")
 		return False
 	return True
 
-def searchFordxdz():
+def searchFordxdz(iterations, prgBar = progressBar):
 	global dxdz
-	for i in range(10):
+	for i in range(iterations):
 		updateConstants()
-		TW, Hw, Hpb, Tw, Tpb = simulate(False)
+		TW, Hw, Hpb, Tw, Tpb = simulate(False, prgBar)
 		diff = TW - T1W
 		dxdz -= diff/10
 	return solutionIsValid(Hw, Hpb, Tw, Tpb)
@@ -486,26 +491,52 @@ def searchFordxdz():
 def parameterAnalysis():
 	global D, di, n
 	dim = 5
-	listi = []
+	lst = []
+	vn = []
+	vdi = []
+	vD = []
+	vval = []
 	for i in range(dim):
-		n = 20 + i
-		listj = []
+		n = 20 + i*2
 		for j in range(dim):
-			di = (5 + i)*0.001
-			listk = []
+			di = (7 + j)*0.001
 			for k in range(dim):
-				D = 0.4 + i*0.2/(dim - 1)
-				valid = searchFordxdz()
-			listj.append(listk)
-		listi.append(listj)
+				D = 0.3 + k*0.2/(dim - 1)
+				if i == 0 and j == 0 and k == 0:
+					iterations = 10
+				else:
+					iterations = 5
+				valid = searchFordxdz(iterations, False)
+				progress = round((i*dim**2 + j*dim + k)*100/(dim**3), 2)
+				print(progress, "%")
+				lst.append((n, di, D, valid))
+				vn.append(n)
+				vdi.append(di)
+				vD.append(D)
+				vval.append(valid)
+	print("-- RAW DATA OUTPUT --")	
+	print(lst)
+	fig = plt.figure(figsize=(6, 6))
+	ax3 = fig.add_subplot(111, projection='3d')
+	plt.tight_layout()
+	col = ['g' if b else 'r' for b in vval]
+	size = [500 if b else 50 for b in vval]
+	ax3.scatter(vn, vdi, vD, c=col, s=size, alpha=0.5)
+	plt.xlabel('n')
+	plt.ylabel('di')
+	ax3.set_zlabel('D')
+	plt.show()
 
 
 
 
-searchFordxdz()
-print(dxdz)
-updateConstants()
-simulate(True)
+# valid = searchFordxdz(10)
+# print(dxdz)
+# updateConstants()
+# simulate(True)
+# print(valid)
+
+parameterAnalysis()
 
 # Hinterval = np.linspace(HWsamp[0], HWsamp[len(HWsamp)-1], 1000)
 # PW = [getReff(H, 540) for H in Hinterval]
