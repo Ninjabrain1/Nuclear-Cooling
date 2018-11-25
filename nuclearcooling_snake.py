@@ -37,7 +37,7 @@ dd = 1*0.001
 # For example, dxdz=0 gives coaxial flow (will be inaccurate because the nusselt
 # number assumes perpendicular flow), dxdz=1 gives 45 degree tubes, and so on.
 # The value of dxdz should be >> 1.
-dxdz = 9.692767222466477
+dxdz = 9.692767222466529
 # Water inflow temperature (steam if above 342.11C, otherwise liquid) [C]
 T0W = 100
 # Desired temperature of water at outflow [C]
@@ -50,9 +50,9 @@ T1Pb = 500
 ## SIMULATION PARAMETERS ##
 
 # Number of length elements
-N = 200
+N = 2000
 # Amount times to compute temperatures, for each iteration the calculation becomes more accurate
-cycles = 20
+cycles = 40
 # If True, print useful data about the solution after the simulation has completed
 printData = True
 # If True, will plot every intermediate state, otherwise it will just plot the final, most accurate, state
@@ -115,6 +115,10 @@ mDotPb = 0
 uW = 0
 # Velocity of lead at inflow [m/s]
 uPb = 0
+# Constants used when calculating R_eff
+cf1 = 1/(2*pi*ri)
+cf2 = np.log(ro/ri)/(2*pi*kss)
+cf3 = 1/(2*pi*ro)
 
 def updateConstants():
 	global dz, R, ri, do, ro, dldz, l, Aw, Apb, deltaHPb, deltaHW, mDotPb, mDotW, uPb, uW
@@ -152,6 +156,10 @@ def updateConstants():
 	uW = mDotW/Aw/getRhoW(getHW(T0W))
 	# Velocity of lead at inflow [m/s]
 	uPb = mDotPb/Apb/rhoPb
+	# Constants used when calculating R_eff
+	cf1 = 1/(2*pi*ri)
+	cf2 = np.log(ro/ri)/(2*pi*kss)
+	cf3 = 1/(2*pi*ro)
 
 def lerp(x, xList, yList):
 	"""Returns an approximation of y(x), xList and yList should contain sampled values from y(x).
@@ -310,10 +318,6 @@ def getConvHtPb(T):
 	"""Returns the convective heat transfer coefficient, h, [W/m^2K] for lead at given temperature [C]"""
 	return getNusseltPb(T)*getLambdaPb(T)/do
 
-# Constant factors used when calculating Reff
-cf1 = 1/(2*pi*ri)
-cf2 = np.log(ro/ri)/(2*pi*kss)
-cf3 = 1/(2*pi*ro)
 def getReff(HW, TPb):
 	"""Returns the overall thermal resistance coefficient, Reff, [mK/W] for given water and lead temp [C]"""
 	return cf1/getConvHtW(HW) + cf2 + cf3/getConvHtPb(TPb)
@@ -574,6 +578,26 @@ def searchFordxdzNewton(prgBar = progressBar, **kwargs):
 		i += 1
 	return solutionIsValid(Hw, Hpb, Tw, Tpb)
 
+def convergenceError():
+	global N
+	vN = range(20, 600, 30)
+	simData = []
+	for n_ in vN:
+		N = n_
+		updateConstants()
+		TW, Hw, Hpb, Tw, Tpb = simulate(False)
+		simData.append(500-TW)
+	#plt.yscale('log')
+	plt.ylim([1e-3, 1e1])
+	plt.scatter(vN, [d for d in simData])
+	plt.xlabel("Number of length elements, N")
+	plt.ylabel("Error relative to " + r'N=2000')
+	#coef = np.polyfit(vN, [np.log(abs(d)) for d in simData], 1)
+	print(simData)
+	# print(coef)
+	#plt.plot([20, 1000], [np.exp(coef[0]*20+coef[1]), np.exp(coef[0]*1000+coef[1])])
+	plt.show()
+
 def parameterAnalysis():
 	global D, di, n
 	dim = 5
@@ -619,12 +643,13 @@ def parameterAnalysis():
 
 updateConstants()
 
-valid, type = searchFordxdzNewton(tolerance=1e-10)
-print("dxdz:", dxdz)
-print(valid)
-updateConstants()
-simulate(True)
+# valid, type = searchFordxdzNewton(tol=1e-10)
+# print("dxdz:", dxdz)
+# print(valid)
+# updateConstants()
+# simulate(True)
 
+convergenceError()
 
 # parameterAnalysis()
 
