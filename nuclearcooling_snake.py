@@ -46,9 +46,6 @@ T1W = 500
 T0Pb = 550
 # Desired temperature of lead at outflow [C]
 T1Pb = 500
-# Lowest alowed lead temperature
-TminPb = 350
-
 
 ## SIMULATION PARAMETERS ##
 
@@ -120,7 +117,7 @@ uW = 0
 uPb = 0
 
 def updateConstants():
-	global dz, R, ri, do, ro, dldz, l, Ahx, Aw, Apb, deltaHPb, deltaHW, mDotPb, mDotW, uPb, uW
+	global dz, R, ri, do, ro, dldz, l, Aw, Apb, deltaHPb, deltaHW, mDotPb, mDotW, uPb, uW
 	# Step size [m]
 	dz = h/(N - 1)
 	# Radius of reactor [m]
@@ -428,10 +425,10 @@ def simulate(printSol = printData, prgBar = progressBar):
 			plt.plot(z, tempsPb[j])
 			plt.plot(z, tempsW[j])
 	if printSol:
-		# plt.plot(z, Tpb, label="Final lead temp [C]")
-		# plt.plot(z, Tw, label="Final water temp [C]")
-		plt.plot(z, Hpb, label="Final lead enthalpy [J/kg]")
-		plt.plot(z, Hw, label="Final water enthalpy [J/kg]")
+		plt.plot(z, Tpb, label="Final lead temp [C]")
+		plt.plot(z, Tw, label="Final water temp [C]")
+		# plt.plot(z, Hpb, label="Final lead enthalpy [J/kg]")
+		# plt.plot(z, Hw, label="Final water enthalpy [J/kg]")
 		# Qw = [mDotW*(H - Hw[0])*1e-6 for H in Hw]
 		# Qpb = [mDotPb*(H - Hpb[0])*1e-6 for H in Hpb]
 		# Qtot = [qw + qpb for qw, qpb in zip(Qw, Qpb)]
@@ -559,7 +556,7 @@ def searchFordxdzNewton(prgBar = progressBar, **kwargs):
 		_, Hw, Hpb, Tw, Tpb = simulate(False, prgBar)
 		dxdz += 0.00001
 		updateConstants()
-		_, dHw, dHpb, dTw, dTpb = simulate(False, prgBar)
+		_, dHw, _, _, _ = simulate(False, prgBar)
 		dxdz -= 0.00001
 		derivativeAprx = (dHw[-1]-Hw[-1])/0.00001
 		diff = (Hw[-1] - H1W)/derivativeAprx
