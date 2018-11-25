@@ -28,9 +28,9 @@ h = 0.64
 # Diameter of reactor [m]
 D = 0.4
 # Number of tubes
-n = 20
+n = 18
 # Inner diameter of tubes [m]
-di = 9*0.001
+di = 11*0.001
 # Thickness of tubes [m]
 dd = 1*0.001
 # "Slope" of the tubes, the x direction is any direction perpendicular to z.
@@ -428,6 +428,8 @@ def simulate(printSol = printData, prgBar = progressBar):
 	if printSol:
 		plt.plot(z, Tpb, label="Final lead temp [C]")
 		plt.plot(z, Tw, label="Final water temp [C]")
+		# plt.plot(z, Hpb, label="Final lead enthalpy [J/kg]")
+		# plt.plot(z, Hw, label="Final water enthalpy [J/kg]")
 		# Qw = [mDotW*(H - Hw[0])*1e-6 for H in Hw]
 		# Qpb = [mDotPb*(H - Hpb[0])*1e-6 for H in Hpb]
 		# plt.plot(z, Qpb, label="Final lead energy flow [MW]")
@@ -466,26 +468,110 @@ def checkSolution(Hw, Hpb):
 def solutionIsValid(Hw, Hpb, Tw, Tpb):
 	tol = 0.001
 	if Aw <= 0 or Apb <= 0 or ro*ro/(R*R)*dldz*n > 0.5:
-		print("A")
-		return False
+		return False, 'A'
 	if abs(Tw[-1]/T1W - 1) > tol:
-		print("B")
-		return False
+		return False, 'B'
 	if abs(Tpb[0]/T1Pb - 1) > tol:
-		print("C")
-		return False
+		return False, 'C'
 	if uW < 1 or uW > 3 or uPb < -3 or uPb > -1:
-		print("D")
-		return False
-	return True
+		return False, 'D'
+	return True, None
 
-def searchFordxdz(iterations, prgBar = progressBar):
+def searchFordxdz(prgBar = progressBar, **kwargs):
 	global dxdz
-	for i in range(iterations):
+	iterations = -1
+	tol = 1e-10
+	argIter = kwargs.get('iterations')
+	argTol = kwargs.get('tol')
+	if argIter != None:
+		iterations = argIter
+	if argTol != None:
+		tol = argTol
+	i = 1
+	while True:
 		updateConstants()
 		TW, Hw, Hpb, Tw, Tpb = simulate(False, prgBar)
 		diff = TW - T1W
-		dxdz -= diff/10
+		dxdz -= diff/15
+		print(diff)
+		if iterations == -1:
+			if abs(diff) < tol or i > 30:
+				break
+		else:
+			if i >= iterations:
+				break
+		i += 1
+	return solutionIsValid(Hw, Hpb, Tw, Tpb)
+
+def searchFordxdzSmart(prgBar = progressBar, **kwargs):
+	global dxdz
+	iterations = -1
+	tol = 1e-10
+	argIter = kwargs.get('iterations')
+	argTol = kwargs.get('tol')
+	if argIter != None:
+		iterations = argIter
+	if argTol != None:
+		tol = argTol
+	i = 1
+	# Desired specific enthalpy of water at outflow
+	H1W = getHW(T1W)
+	while True:
+		updateConstants()
+		_, Hw, Hpb, Tw, Tpb = simulate(False, prgBar)
+		deltaZ = (Hw[-1] - H1W)/dHWdz(Tpb[-1], Tw[-1], Hw[-1])
+		diff = deltaZ*dldz/h
+		if (diff > dxdz/2):
+			dxdz = dxdz*0.9
+		else:
+			dxdz -= diff
+		print(dHWdz(Tpb[-1], Tw[-1], Hw[-1]))
+		print(deltaZ)
+		print(diff)
+		if iterations == -1:
+			if abs(diff) < tol or i > 30:
+				break
+		else:
+			if i >= iterations:
+				break
+		i += 1
+	return solutionIsValid(Hw, Hpb, Tw, Tpb)
+
+def searchFordxdzNewton(prgBar = progressBar, **kwargs):
+	global dxdz
+	iterations = -1
+	tol = 1e-10
+	argIter = kwargs.get('iterations')
+	argTol = kwargs.get('tol')
+	if argIter != None:
+		iterations = argIter
+	if argTol != None:
+		tol = argTol
+	i = 1
+	# Desired specific enthalpy of water at outflow
+	H1W = getHW(T1W)
+	while True:
+		updateConstants()
+		_, Hw, Hpb, Tw, Tpb = simulate(False, prgBar)
+		dxdz += 0.0001
+		updateConstants()
+		_, dHw, dHpb, dTw, dTpb = simulate(False, prgBar)
+		dxdz -= 0.0001
+		derivativeAprx = (dHw[-1]-Hw[-1])/0.0001
+		diff = (Hw[-1] - H1W)/derivativeAprx
+		if (diff > dxdz/2):
+			dxdz = dxdz*0.9
+		else:
+			dxdz -= diff
+		# dxdz -= diff
+		print(diff)
+		if iterations == -1:
+			if abs(diff) < tol or i > 30:
+				break
+		else:
+			if i >= iterations:
+				break
+		i += 1
 	return solutionIsValid(Hw, Hpb, Tw, Tpb)
 
 def parameterAnalysis():
@@ -496,24 +582,26 @@ def parameterAnalysis():
 	vdi = []
 	vD = []
 	vval = []
+	verr = []
 	for i in range(dim):
-		n = 20 + i*2
+		n = 14 + i*4
 		for j in range(dim):
-			di = (7 + j)*0.001
+			di = 8*0.001 + j*0.002
 			for k in range(dim):
-				D = 0.3 + k*0.2/(dim - 1)
+				D = 0.35 + k*0.2/(dim - 1)
 				if i == 0 and j == 0 and k == 0:
-					iterations = 10
+					iterations = -1#10
 				else:
-					iterations = 5
-				valid = searchFordxdz(iterations, False)
+					iterations = -1#5
+				valid, errType = searchFordxdzNewton(True, iterations=iterations, tol=1e-5)
 				progress = round((i*dim**2 + j*dim + k)*100/(dim**3), 2)
 				print(progress, "%")
-				lst.append((n, di, D, valid))
+				lst.append((n, di, D, valid, errType))
 				vn.append(n)
 				vdi.append(di)
 				vD.append(D)
 				vval.append(valid)
+				verr.append(errType)
 	print("-- RAW DATA OUTPUT --")	
 	print(lst)
 	fig = plt.figure(figsize=(6, 6))
@@ -521,7 +609,9 @@ def parameterAnalysis():
 	plt.tight_layout()
 	col = ['g' if b else 'r' for b in vval]
 	size = [500 if b else 50 for b in vval]
-	ax3.scatter(vn, vdi, vD, c=col, s=size, alpha=0.5)
+	shape = ['.' if e==None else '$'+e+'$' for e in verr]
+	for n_, di_, D_, col_, size_, shape_ in zip(vn, vdi, vD, col, size, shape):
+		ax3.scatter([n_], [di_], [D_], c=col_, s=size_, alpha=0.5, marker=shape_)
 	plt.xlabel('n')
 	plt.ylabel('di')
 	ax3.set_zlabel('D')
@@ -530,7 +620,7 @@ def parameterAnalysis():
 
 
 
-# valid = searchFordxdz(10)
+# valid, type = searchFordxdzNewton(tolerance=1e-10)
 # print(dxdz)
 # updateConstants()
 # simulate(True)
