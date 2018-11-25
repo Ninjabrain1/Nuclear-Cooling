@@ -37,5 +37,5 @@ def readFile(fileName):
 
 
 
-data = eval(readFile("q14h64.txt"))
+data = eval(readFile("sparse.txt"))
 plot(data)

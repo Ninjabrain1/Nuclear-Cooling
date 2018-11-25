@@ -26,26 +26,26 @@ Q = 14e6
 # Height of reactor [m]
 h = 0.64
 # Diameter of reactor [m]
-D = 0.35
+D = 0.491
 # Number of tubes
-n = 50
+n = 64
 # Inner diameter of tubes [m]
-di = 7*0.001
+di = 8*0.001
 # Thickness of tubes [m]
 dd = 1*0.001
 # "Slope" of the tubes, the x direction is any direction perpendicular to z.
 # For example, dxdz=0 gives coaxial flow (will be inaccurate because the nusselt
 # number assumes perpendicular flow), dxdz=1 gives 45 degree tubes, and so on.
 # The value of dxdz should be >> 1.
-dxdz = 9.692767222466477
+dxdz = 15.596843137145555
 # Water inflow temperature (steam if above 342.11C, otherwise liquid) [C]
-T0W = 100
+T0W = 335
 # Desired temperature of water at outflow [C]
-T1W = 500
+T1W = 530
 # Lead inflow temperature [C]
 T0Pb = 550
 # Desired temperature of lead at outflow [C]
-T1Pb = 500
+T1Pb = 420
 # Lowest alowed lead temperature
 TminPb = 350
 
@@ -55,7 +55,7 @@ TminPb = 350
 # Number of length elements
 N = 200
 # Amount times to compute temperatures, for each iteration the calculation becomes more accurate
-cycles = 20
+cycles = 40
 # If True, print useful data about the solution after the simulation has completed
 printData = True
 # If True, will plot every intermediate state, otherwise it will just plot the final, most accurate, state
@@ -355,12 +355,10 @@ def printSolutionData(Hw, Hpb):
 	print("Flow areas                    {0:.3f}       {1:.3f}               m^2       ".format(Aw, Apb))
 	print("Inflow Temp                   {0:.3f}       {1:.3f}              deg. C     ".format(getTW(Hw[0]), getTPb(Hpb[-1])))
 	print("Outflow Temp                  {0:.3f}       {1:.3f}              deg. C     ".format(getTW(Hw[-1]), getTPb(Hpb[0])))
-	print("Specific Enthalpy gained      {0:.3f}       {1:.3f}               MJ/kg     ".format((Hw[-1]-Hw[0])*1e-6, (Hpb[0]-Hpb[-1])*1e-6))
 	print("Mass flow (pos z)             {0:.3f}       {1:.3f}               kg/s      ".format(mDotW, mDotPb))
 	print("Inflow vel. (pos z)           {0:.3f}       {1:.3f}               m/s       ".format(uW, uPb))
 	print("Thermal pwr gain              {0:.3f}       {1:.3f}               MW        ".format(Qw, Qpb))
 	print("Solution discrepancy (lower is better): 10^{0:.0f} W".format(np.log10(checkSolution(Hw, Hpb))))
-
 ##### SIMULATION #####
 
 # Derivative of water enthalpy with respect to z
@@ -428,16 +426,14 @@ def simulate(printSol = printData, prgBar = progressBar):
 			plt.plot(z, tempsPb[j])
 			plt.plot(z, tempsW[j])
 	if printSol:
-		# plt.plot(z, Tpb, label="Final lead temp [C]")
-		# plt.plot(z, Tw, label="Final water temp [C]")
-		plt.plot(z, Hpb, label="Final lead enthalpy [J/kg]")
-		plt.plot(z, Hw, label="Final water enthalpy [J/kg]")
+		plt.plot(z, Tpb, label="Final lead temp [C]")
+		plt.plot(z, Tw, label="Final water temp [C]")
+		# plt.plot(z, Hpb, label="Final lead enthalpy [J/kg]")
+		# plt.plot(z, Hw, label="Final water enthalpy [J/kg]")
 		# Qw = [mDotW*(H - Hw[0])*1e-6 for H in Hw]
 		# Qpb = [mDotPb*(H - Hpb[0])*1e-6 for H in Hpb]
-		# Qtot = [qw + qpb for qw, qpb in zip(Qw, Qpb)]
 		# plt.plot(z, Qpb, label="Final lead energy flow [MW]")
 		# plt.plot(z, Qw, label="Final water energy flow [MW]")
-		# plt.plot(z, Qtot, label="Total energy flow [MW]")
 		plt.legend()
 		plt.xlabel("z")
 		plt.ylabel("Temperature [C]")
@@ -587,9 +583,9 @@ def parameterAnalysis():
 	vval = []
 	verr = []
 	for i in range(dim):
-		n = 10 + i*10
+		n = 14 + i*4
 		for j in range(dim):
-			di = 5*0.001 + j*0.002
+			di = 8*0.001 + j*0.002
 			for k in range(dim):
 				D = 0.35 + k*0.2/(dim - 1)
 				if i == 0 and j == 0 and k == 0:
@@ -620,20 +616,16 @@ def parameterAnalysis():
 	ax3.set_zlabel('D')
 	plt.show()
 
-updateConstants()
-
 valid, type = searchFordxdzNewton(tolerance=1e-10)
 print("dxdz:", dxdz)
 print(valid)
 updateConstants()
 simulate(True)
 
-
-# parameterAnalysis()
+#parameterAnalysis()
 
 # Hinterval = np.linspace(HWsamp[0], HWsamp[len(HWsamp)-1], 1000)
 # PW = [getReff(H, 540) for H in Hinterval]
-# PW = [dHWdz(500, getTW(H), H) for H in Hinterval]
 # plt.plot(Hinterval, PW)
 # plt.show()
 
