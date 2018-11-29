@@ -51,14 +51,18 @@ T1Pb = 500
 
 # Number of length elements
 N = 2000
+# Amount times to compute temperatures, for each iteration the calculation becomes more accurate
+cycles = 40
 # If True, print useful data about the solution after the simulation has completed
 printData = True
+# If True, will plot every intermediate state, otherwise it will just plot the final, most accurate, state
+plotIntermediates = False
 # If True will print a progress bar as it's simulating
 progressBar = True
 # If True will plot the "convegence error", a low error means the solution has converged
 # (not necessarily to the right solution). A systematic error means cycles should be increased,
 # a noisy error means that the amount of cycles is fine.
-plotError = False
+plotError = True
 
 
 ## PHYSICAL CONSTANTS ##
@@ -115,11 +119,9 @@ uPb = 0
 cf1 = 1/(2*pi*ri)
 cf2 = np.log(ro/ri)/(2*pi*kss)
 cf3 = 1/(2*pi*ro)
-# Total "enthalpy flow" through the SG
-C = 0
 
 def updateConstants():
-	global dz, R, ri, do, ro, dldz, l, Aw, Apb, deltaHPb, deltaHW, mDotPb, mDotW, uPb, uW, C, cf1, cf2, cf3
+	global dz, R, ri, do, ro, dldz, l, Aw, Apb, deltaHPb, deltaHW, mDotPb, mDotW, uPb, uW
 	# Step size [m]
 	dz = h/(N - 1)
 	# Radius of reactor [m]
@@ -158,8 +160,6 @@ def updateConstants():
 	cf1 = 1/(2*pi*ri)
 	cf2 = np.log(ro/ri)/(2*pi*kss)
 	cf3 = 1/(2*pi*ro)
-	# Total "enthalpy flow" through the SG
-	C = getHW(T0W)*mDotW + getHPb(T1Pb)*mDotPb
 
 def lerp(x, xList, yList):
 	"""Returns an approximation of y(x), xList and yList should contain sampled values from y(x).
@@ -341,7 +341,7 @@ def plotEnthalpyData():
 	plt.show()
 
 def printSolutionData(Hw, Hpb):
-	print("Data for simulation with N = {0}".format(N))
+	print("Data for simulation with N = {0}, and {1} cycles".format(N, cycles))
 	print("Reactor dimensions: height = {0} m, diameter = {1} m".format(h,D))
 	print("Fraction of volume consisting of water and tube material: {0}".format(ro*ro/(R*R)*dldz*n))
 	print("TUBE DATA:")
@@ -371,30 +371,51 @@ def dHWdz(TPb, TW, HW):
 def dHPbdz(TPb, TW, HW):
 	return (TW-TPb)*dldz/(mDotPb*getReff(HW, TPb))*n
 
-def Hw2Hpb(Hw):
-	return (C - mDotW*Hw)/mDotPb
-
 # Main function
 def simulate(printSol = printData, prgBar = progressBar):
 	if prgBar:
 		print('[', end='')
 	# Water specific enthalpy at inflow (z=0)
 	H0W = getHW(T0W)
-	# Lead specific enthalpy at outflow (z=0)
-	H1Pb = getHPb(T1Pb)
-	#Initial values
+	# Lead specific enthalpy at inflow (z=h)
+	H0Pb = getHPb(T0Pb)
+	#Initial guesses
 	Hw = [H0W]*N
-	Hpb = [H1Pb]*N
+	Hpb = [H0Pb]*N
 	Tw = [T0W]*N
-	Tpb = [T1Pb]*N
+	Tpb = [T0Pb]*N
 	
-	for i in range(1, N):
-		Hw[i] = Hw[i-1] + dHWdz(Tpb[i-1], Tw[i-1], Hw[i-1])*dz
-		Tw[i] = getTW(Hw[i])
-		Hpb[i] = Hw2Hpb(Hw[i])
-		Tpb[i] = getTPb(Hpb[i])
+	HWmin = 16000
+	HWmax = 3530000
+	
+	tempsW = [Tw.copy()]
+	tempsPb = [Tpb.copy()]
+	for j in range(cycles):
+		lastDeltaTw = 0
+		lastDeltaTpb = 0
+		for i in range(1, N):
+			# Provide an estimation for the temperature (will not
+			# change the solution, just allow it to converge faster)
+			T = Tw[i] + lastDeltaTw
+			Hw[i] = Hw[i-1] + dHWdz(Tpb[i], T, Hw[i])*dz
+			# Cannot allow enthalpy outside of sampled values
+			Hw[i] = np.max((HWmin, np.min((HWmax, Hw[i]))))
+			# Record how much T changed, the assumtion is that the
+			# next T value will change by roughly the same amount
+			lastTw = Tw[i]
+			Tw[i] = getTW(Hw[i])
+			lastDeltaTw = Tw[i] - lastTw
+		for i in range(N-2, -1, -1):
+			T = Tpb[i+1] + lastDeltaTpb
+			Hpb[i] = Hpb[i+1] - dHPbdz(T, Tw[i+1], Hw[i+1])*dz
+			lastTpb = Tpb[i]
+			Tpb[i] = getTPb(Hpb[i])
+			lastDeltaTpb = Tpb[i] - lastTpb
+		if plotIntermediates:
+			tempsW += [Tw.copy()]
+			tempsPb += [Tpb.copy()]
 		if prgBar:
-			if i%(N/19) <= 1:
+			if j%(cycles/19) <= 1:
 				print('=', end='', flush=True)
 	if prgBar:
 		print(']')
@@ -403,6 +424,10 @@ def simulate(printSol = printData, prgBar = progressBar):
 		printSolutionData(Hw, Hpb)
 	
 	z = np.linspace(0, h, N)
+	if plotIntermediates:
+		for j in range(len(tempsW)-1):
+			plt.plot(z, tempsPb[j])
+			plt.plot(z, tempsW[j])
 	if printSol:
 		plt.plot(z, Tpb, label="Final lead temp [C]")
 		plt.plot(z, Tw, label="Final water temp [C]")
@@ -431,11 +456,11 @@ def checkSolution(Hw, Hpb):
 	discrepancyQPb = []
 	for i in range(1, N):
 		deltaHW = Hw[i] - Hw[i-1]
-		discrepancy = deltaHW - dHWdz(Tpb[i-1], Tw[i-1], Hw[i-1])*dz
+		discrepancy = deltaHW - dHWdz(Tpb[i], Tw[i], Hw[i])*dz
 		discrepancyQW.append(getQW(discrepancy)*1e6)
 	for i in range(1, N):
 		deltaHPb = Hpb[i] - Hpb[i-1]
-		discrepancy = deltaHPb - dHPbdz(Tpb[i-1], Tw[i-1], Hw[i-1])*dz
+		discrepancy = deltaHPb - dHPbdz(Tpb[i], Tw[i], Hw[i])*dz
 		discrepancyQPb.append(getQPb(discrepancy)*1e6)
 	if plotError:
 		z = np.linspace(0, h, N-1)
@@ -555,20 +580,20 @@ def searchFordxdzNewton(prgBar = progressBar, **kwargs):
 
 def convergenceError():
 	global N
-	vN = range(20, 600, 10)
+	vN = range(20, 600, 30)
 	simData = []
 	for n_ in vN:
 		N = n_
 		updateConstants()
 		TW, Hw, Hpb, Tw, Tpb = simulate(False)
-		simData.append(abs(500-TW))
+		simData.append(500-TW)
 	#plt.yscale('log')
 	plt.ylim([1e-3, 1e1])
 	plt.scatter(vN, [d for d in simData])
 	plt.xlabel("Number of length elements, N")
-	plt.ylabel("Temperature error [C] compated to " + r'N=2000')
+	plt.ylabel("Temperature error [C] relative to " + r'N=2000')
 	#coef = np.polyfit(vN, [np.log(abs(d)) for d in simData], 1)
-	# print(simData)
+	print(simData)
 	# print(coef)
 	#plt.plot([20, 1000], [np.exp(coef[0]*20+coef[1]), np.exp(coef[0]*1000+coef[1])])
 	plt.show()
@@ -622,11 +647,11 @@ updateConstants()
 # print("dxdz:", dxdz)
 # print(valid)
 # updateConstants()
-# simulate(True)
+#simulate(True)
 
-#convergenceError()
+convergenceError()
 
-parameterAnalysis()
+# parameterAnalysis()
 
 # Hinterval = np.linspace(HWsamp[0], HWsamp[len(HWsamp)-1], 1000)
 # PW = [getReff(H, 540) for H in Hinterval]
