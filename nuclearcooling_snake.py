@@ -638,6 +638,14 @@ def parameterAnalysis():
 	ax3.set_zlabel('D')
 	plt.show()
 
+def phaseDiagram():
+    """Draw the phase diagram of dHdz against H"""
+    _, Hw, Hpb, Tw, Tpb = simulate(False)
+
+    Hp = [dHWdz(TPb, TW, HW) for TPb, TW, HW in zip(Tpb, Tw, Hw)]
+    plt.scatter(Hw, Hp)
+    plt.show()
+
 def parameterAnalysis2D():
 	"""Simulates the system for many different parameter choises and gives a plot of which
 	set of parameters meet all the requirements."""
@@ -684,11 +692,13 @@ updateConstants()
 ##updateConstants()
 ##simulate(True)
 
+phaseDiagram()
+
 #convergenceError()
 
 ##parameterAnalysis()
 
-parameterAnalysis2D()
+#parameterAnalysis2D()
 
 # Hinterval = np.linspace(HWsamp[0], HWsamp[len(HWsamp)-1], 1000)
 # PW = [getReff(H, 540) for H in Hinterval]
