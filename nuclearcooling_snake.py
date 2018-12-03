@@ -76,6 +76,7 @@ HWb1 = 2611.4108223058e3
 
 
 ## CALCULATED CONSTANTS ##
+## A lot of variables are set to 0 just to initialize them, they will be updated later ##
 
 # Step size [m]
 dz = h/(N - 1)
@@ -361,7 +362,7 @@ def printSolutionData(Hw, Hpb):
 	Qpb = getQPb(Hpb[N-1]) - getQPb(Hpb[0])
 	print("")
 	print("SOLUTION DETAILS                WATER        LEAD         PHYSICAL DIMENSION")
-	print("Flow areas                    {0:.3f}       {1:.3f}               m^2       ".format(Aw, Apb))
+	print("Flow areas                    {0:.4f}       {1:.4f}               m^2       ".format(Aw, Apb))
 	print("Inflow Temp                   {0:.3f}       {1:.3f}              deg. C     ".format(getTW(Hw[0]), getTPb(Hpb[-1])))
 	print("Outflow Temp                  {0:.3f}       {1:.3f}              deg. C     ".format(getTW(Hw[-1]), getTPb(Hpb[0])))
 	print("Specific Enthalpy gained      {0:.3f}       {1:.3f}               MJ/kg     ".format((Hw[-1]-Hw[0])*1e-6, (Hpb[0]-Hpb[-1])*1e-6))
@@ -454,6 +455,8 @@ def checkSolution(Hw, Hpb):
 	return (np.sum([abs(d) for d in discrepancyQW]) + np.sum([abs(d) for d in discrepancyQPb]))/N
 
 def solutionIsValid(Hw, Hpb, Tw, Tpb):
+	"""Returns whether or not a given solution satisfy all the requirements on temperature, velocities,
+	cross sectional areas, power, etc."""
 	tol = 0.001
 	if Aw <= 0 or Apb <= 0 or ro*ro/(R*R)*dldz*n > 0.5:
 		return False, 'A'
@@ -529,6 +532,7 @@ def searchFordxdzSmart(prgBar = progressBar, **kwargs):
 	return solutionIsValid(Hw, Hpb, Tw, Tpb)
 
 def searchFordxdzNewton(prgBar = progressBar, **kwargs):
+	"""Uses Newton's method for finding zeroes to a function to find the correct tube slope, dxdz."""
 	global dxdz
 	iterations = -1
 	tol = 1e-10
@@ -543,6 +547,7 @@ def searchFordxdzNewton(prgBar = progressBar, **kwargs):
 	H1W = getHW(T1W)
 	while True:
 		updateConstants()
+		# approximate the derivative of H with respect to dxdz
 		_, Hw, Hpb, Tw, Tpb = simulate(False, prgBar)
 		dxdz += 0.00001
 		updateConstants()
@@ -554,7 +559,7 @@ def searchFordxdzNewton(prgBar = progressBar, **kwargs):
 			dxdz = dxdz*0.9
 		else:
 			dxdz -= diff
-		print(diff)
+		#print(diff)
 		if iterations == -1:
 			if abs(diff) < tol or i > 30:
 				break
@@ -562,9 +567,13 @@ def searchFordxdzNewton(prgBar = progressBar, **kwargs):
 			if i >= iterations:
 				break
 		i += 1
+	# This algorithm is not guaranteed to give a valid dxdz value (if the other parameters are
+	# unreasonable no value of dxdz will magically fix everything), return whether the resulting
+	# solution is valid or not.
 	return solutionIsValid(Hw, Hpb, Tw, Tpb)
 
 def convergenceError():
+	"""Simulates the convergence error as function of the number of length elements, N."""
 	global N
 	vN = range(20, 600, 10)
 	simData = []
@@ -585,6 +594,8 @@ def convergenceError():
 	plt.show()
 
 def parameterAnalysis():
+	"""Simulates the system for many different parameter choises and gives a plot of which
+	set of parameters meet all the requirements."""
 	global D, di, n
 	dim = 5
 	lst = []
@@ -627,17 +638,57 @@ def parameterAnalysis():
 	ax3.set_zlabel('D')
 	plt.show()
 
+def parameterAnalysis2D():
+	"""Simulates the system for many different parameter choises and gives a plot of which
+	set of parameters meet all the requirements."""
+	global di, n
+	dim = 10
+	lst = []
+	vn = []
+	vdi = []
+	vval = []
+	verr = []
+	for i in range(dim):
+		n = 20 + i*5
+		for j in range(dim):
+			di = 6*0.001 + j*0.001
+			iterations = -1
+			valid, errType = searchFordxdzNewton(True, iterations=iterations, tol=1e-5)
+			progress = round((i*dim + j)*100/(dim**2), 2)
+			print(progress, "%")
+			lst.append((n, di, valid, errType))
+			vn.append(n)
+			vdi.append(di)
+			vval.append(valid)
+			verr.append(errType)
+	print("-- RAW DATA OUTPUT --")	
+	print(lst)
+	fig = plt.figure(figsize=(6, 6))
+	col = ['g' if b else 'r' for b in vval]
+	size = [500 if b else 50 for b in vval]
+	shape = ['.' if e==None else '$'+e+'$' for e in verr]
+	for n_, di_, col_, size_, shape_ in zip(vn, vdi, col, size, shape):
+		plt.scatter([n_], [di_], c=col_, s=size_, alpha=0.5, marker=shape_)
+	plt.xlabel(r'$n$')
+	plt.ylabel(r'$d_i$')
+	plt.yticks([6*0.001 + j*0.001 for j in range(dim)])
+	plt.xticks([20 + i*5 for i in range(dim)])
+	plt.tight_layout()
+	plt.show()
+
 updateConstants()
 
-valid, type = searchFordxdzNewton(tol=1e-10)
-print("dxdz:", dxdz)
-print(valid)
-updateConstants()
-simulate(True)
+##valid, type = searchFordxdzNewton(tol=1e-10)
+##print("dxdz:", dxdz)
+##print(valid)
+##updateConstants()
+##simulate(True)
 
 #convergenceError()
 
 ##parameterAnalysis()
+
+parameterAnalysis2D()
 
 # Hinterval = np.linspace(HWsamp[0], HWsamp[len(HWsamp)-1], 1000)
 # PW = [getReff(H, 540) for H in Hinterval]
@@ -645,4 +696,4 @@ simulate(True)
 # plt.plot(Hinterval, PW)
 # plt.show()
 
-# plotEnthalpyData()
+#plotEnthalpyData()
