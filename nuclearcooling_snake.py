@@ -26,11 +26,11 @@ Q = 14e6
 # Height of reactor [m]
 h = 0.64
 # Diameter of reactor [m]
-D = 0.35
+D = 0.5
 # Number of tubes
-n = 50
+n = 40
 # Inner diameter of tubes [m]
-di = 7*0.001
+di = 12*0.001
 # Thickness of tubes [m]
 dd = 1*0.001
 # "Slope" of the tubes, the x direction is any direction perpendicular to z.
@@ -287,6 +287,13 @@ def getConvHtW(H):
 	"""Returns the convective heat transfer coefficient, h, [W/m^2K] for water at given specific enthalpy [J/kg]"""
 	return getNusseltW(H)*getkW(H)/di
 
+def getMaxLiquidVelocity():
+	"""Returns the maximum water velocity of liquid water in the tubes [m/s], this is the same as the water
+	velocity just before the boiling point."""
+	rhoB = getRhoW(HWb0)
+	uMax = mDotW/Aw/rhoB
+	return uMax
+
 ## LEAD PROPERTIES ##
 
 def getHPb(T):
@@ -348,6 +355,7 @@ def printSolutionData(Hw, Hpb):
 	print("Dimensions (1 tube):  length: {0:.3f}  m,  outer diameter:    {1:.1f} mm,      thickness: {2:.1f} mm".format(l, do*1000, dd*1000))
 	print("Geometry:             Number of tubes:     {0}, slope of tubes dx/dz: {1:.1f}".format(n,dxdz))
 	print("Material properties:  Conductivity: {0} W/mK".format(kss))
+	print("Maximum liquid water velocity: {0} m/s".format(getMaxLiquidVelocity()))
 	print("")
 	Qw = getQW(Hw[N-1]) - getQW(Hw[0])
 	Qpb = getQPb(Hpb[N-1]) - getQPb(Hpb[0])
@@ -453,9 +461,12 @@ def solutionIsValid(Hw, Hpb, Tw, Tpb):
 		return False, 'B'
 	if abs(Tpb[0]/T1Pb - 1) > tol:
 		return False, 'C'
-	if uW < 1 or uW > 3 or uPb < -3 or uPb > -1:
+	if getMaxLiquidVelocity() > 3 or uPb < -3 or uPb > -1:#or uW < 1:
 		return False, 'D'
-	return True, None
+	return True, str(round(uW, 2))#None
+
+#def getCost():
+#	"""Returns the 'cost' of a set of parameters such as """
 
 def searchFordxdz(prgBar = progressBar, **kwargs):
 	global dxdz
@@ -583,9 +594,9 @@ def parameterAnalysis():
 	vval = []
 	verr = []
 	for i in range(dim):
-		n = 10 + i*10
+		n = 20 + i*10
 		for j in range(dim):
-			di = 5*0.001 + j*0.002
+			di = 6*0.001 + j*0.002
 			for k in range(dim):
 				D = 0.35 + k*0.2/(dim - 1)
 				if i == 0 and j == 0 and k == 0:
@@ -618,15 +629,15 @@ def parameterAnalysis():
 
 updateConstants()
 
-# valid, type = searchFordxdzNewton(tol=1e-10)
-# print("dxdz:", dxdz)
-# print(valid)
-# updateConstants()
-# simulate(True)
+valid, type = searchFordxdzNewton(tol=1e-10)
+print("dxdz:", dxdz)
+print(valid)
+updateConstants()
+simulate(True)
 
 #convergenceError()
 
-parameterAnalysis()
+##parameterAnalysis()
 
 # Hinterval = np.linspace(HWsamp[0], HWsamp[len(HWsamp)-1], 1000)
 # PW = [getReff(H, 540) for H in Hinterval]
