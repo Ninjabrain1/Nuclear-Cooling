@@ -37,7 +37,7 @@ dd = 1*0.001
 # For example, dxdz=0 gives coaxial flow (will be inaccurate because the nusselt
 # number assumes perpendicular flow), dxdz=1 gives 45 degree tubes, and so on.
 # The value of dxdz should be >> 1.
-dxdz = 9.692767222466529
+dxdz = 11.489791638
 # Water inflow temperature (steam if above 342.11C, otherwise liquid) [C]
 T0W = 100
 # Desired temperature of water at outflow [C]
@@ -56,8 +56,7 @@ printData = True
 # If True will print a progress bar as it's simulating
 progressBar = True
 # If True will plot the "convegence error", a low error means the solution has converged
-# (not necessarily to the right solution). A systematic error means cycles should be increased,
-# a noisy error means that the amount of cycles is fine.
+# (not necessarily to the right solution). A systematic error is bad, a noisy error is good.
 plotError = False
 
 
@@ -328,7 +327,7 @@ def getConvHtPb(T):
 
 def getReff(HW, TPb):
 	"""Returns the overall thermal resistance coefficient, Reff, [mK/W] for given water and lead temp [C]"""
-	return cf1/getConvHtW(HW) + cf2 + cf3/getConvHtPb(TPb)
+	return (cf1/getConvHtW(HW) + cf2 + cf3/getConvHtPb(TPb))*1.5
 
 def getQW(Hw):
 	"""Returns the energy flow of water for given enthalpy [MW]"""
@@ -690,9 +689,9 @@ updateConstants()
 ##print("dxdz:", dxdz)
 ##print(valid)
 ##updateConstants()
-##simulate(True)
+simulate(True)
 
-phaseDiagram()
+#phaseDiagram()
 
 #convergenceError()
 
