@@ -37,7 +37,7 @@ dd = 1*0.001
 # For example, dxdz=0 gives coaxial flow (will be inaccurate because the nusselt
 # number assumes perpendicular flow), dxdz=1 gives 45 degree tubes, and so on.
 # The value of dxdz should be >> 1.
-dxdz = 9.692767222466529
+dxdz = 9.687401341396164
 # Water inflow temperature (steam if above 342.11C, otherwise liquid) [C]
 T0W = 100
 # Desired temperature of water at outflow [C]
@@ -58,7 +58,7 @@ progressBar = True
 # If True will plot the "convegence error", a low error means the solution has converged
 # (not necessarily to the right solution). A systematic error means cycles should be increased,
 # a noisy error means that the amount of cycles is fine.
-plotError = False
+plotError = True
 
 
 ## PHYSICAL CONSTANTS ##
@@ -364,18 +364,36 @@ def printSolutionData(Hw, Hpb):
 
 ##### SIMULATION #####
 
+# Fourth order Runge-Kutta integrator
+def RK4(y, f, h):
+	k1 = h*f(y)
+	k2 = h*f(y + k1/2)
+	k3 = h*f(y + k2/2)
+	k4 = h*f(y + k3)
+	return y + (k1 + 2*k2 + 2*k3 + k4)/6
+# Euler integrator
+def euler(y, f, h):
+	return y + f(y)*h
+# Given y_n, y'=f(y), step size h, will return y_{n+1}
+def integrate(H, dHdz, method):
+	return method(H, dHdz, dz)
+
 # Derivative of water enthalpy with respect to z
 def dHWdz(TPb, TW, HW):
 	return (TPb-TW)*dldz/(mDotW*getReff(HW, TPb))*n
 # Derivative of lead enthalpy with respect to z
 def dHPbdz(TPb, TW, HW):
 	return (TW-TPb)*dldz/(mDotPb*getReff(HW, TPb))*n
-
+# Hpb can be calculated from Hw because of energy conservation
 def Hw2Hpb(Hw):
 	return (C - mDotW*Hw)/mDotPb
+# Expression for dHWdz that only depends on HW
+def dHdz(H):
+	return dHWdz(getTPb(Hw2Hpb(H)), getTW(H), H)
 
-# Main function
-def simulate(printSol = printData, prgBar = progressBar):
+# Most important function, simulates the steam generator
+def simulate(printSol = printData, prgBar = progressBar, **kwargs):
+	method = kwargs.get('method', euler)
 	if prgBar:
 		print('[', end='')
 	# Water specific enthalpy at inflow (z=0)
@@ -389,7 +407,8 @@ def simulate(printSol = printData, prgBar = progressBar):
 	Tpb = [T1Pb]*N
 	
 	for i in range(1, N):
-		Hw[i] = Hw[i-1] + dHWdz(Tpb[i-1], Tw[i-1], Hw[i-1])*dz
+		#Hw[i] = Hw[i-1] + dHWdz(Tpb[i-1], Tw[i-1], Hw[i-1])*dz
+		Hw[i] = integrate(Hw[i-1], dHdz, method)
 		Tw[i] = getTW(Hw[i])
 		Hpb[i] = Hw2Hpb(Hw[i])
 		Tpb[i] = getTPb(Hpb[i])
@@ -527,15 +546,16 @@ def searchFordxdzNewton(prgBar = progressBar, **kwargs):
 		iterations = argIter
 	if argTol != None:
 		tol = argTol
+	method = kwargs.get("method", euler)
 	i = 1
 	# Desired specific enthalpy of water at outflow
 	H1W = getHW(T1W)
 	while True:
 		updateConstants()
-		_, Hw, Hpb, Tw, Tpb = simulate(False, prgBar)
+		_, Hw, Hpb, Tw, Tpb = simulate(False, prgBar, method=method)
 		dxdz += 0.00001
 		updateConstants()
-		_, dHw, _, _, _ = simulate(False, prgBar)
+		_, dHw, _, _, _ = simulate(False, prgBar, method=method)
 		dxdz -= 0.00001
 		derivativeAprx = (dHw[-1]-Hw[-1])/0.00001
 		diff = (Hw[-1] - H1W)/derivativeAprx
@@ -553,14 +573,15 @@ def searchFordxdzNewton(prgBar = progressBar, **kwargs):
 		i += 1
 	return solutionIsValid(Hw, Hpb, Tw, Tpb)
 
-def convergenceError():
+def convergenceError(**kwargs):
 	global N
-	vN = range(20, 600, 10)
+	method = kwargs.get("method", euler)
+	vN = range(20, 1000, 30)
 	simData = []
 	for n_ in vN:
 		N = n_
 		updateConstants()
-		TW, Hw, Hpb, Tw, Tpb = simulate(False)
+		TW, Hw, Hpb, Tw, Tpb = simulate(False, method=method)
 		simData.append(abs(500-TW))
 	#plt.yscale('log')
 	plt.ylim([1e-3, 1e1])
@@ -618,15 +639,15 @@ def parameterAnalysis():
 
 updateConstants()
 
-# valid, type = searchFordxdzNewton(tol=1e-10)
+# valid, type = searchFordxdzNewton(tol=1e-10, method=RK4)
 # print("dxdz:", dxdz)
 # print(valid)
 # updateConstants()
-# simulate(True)
+#simulate(True, method=RK4)
 
-#convergenceError()
+convergenceError(method=RK4)
 
-parameterAnalysis()
+#parameterAnalysis()
 
 # Hinterval = np.linspace(HWsamp[0], HWsamp[len(HWsamp)-1], 1000)
 # PW = [getReff(H, 540) for H in Hinterval]
