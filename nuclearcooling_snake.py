@@ -1,6 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib
 from mpl_toolkits.mplot3d import Axes3D
+
+matplotlib.rcParams.update({'font.size': 16})
 
 # Differences from coaxial steam generator:
 # 	The geometry of this reactor are tubes going from z=0 to z=h with
@@ -37,7 +40,7 @@ dd = 1*0.001
 # For example, dxdz=0 gives coaxial flow (will be inaccurate because the nusselt
 # number assumes perpendicular flow), dxdz=1 gives 45 degree tubes, and so on.
 # The value of dxdz should be >> 1.
-dxdz = 11.489791638
+dxdz = 11.496543462400384
 # Water inflow temperature (steam if above 342.11C, otherwise liquid) [C]
 T0W = 100
 # Desired temperature of water at outflow [C]
@@ -50,7 +53,7 @@ T1Pb = 500
 ## SIMULATION PARAMETERS ##
 
 # Number of length elements
-N = 2000
+N = 20000
 # If True, print useful data about the solution after the simulation has completed
 printData = True
 # If True will print a progress bar as it's simulating
@@ -327,7 +330,7 @@ def getConvHtPb(T):
 
 def getReff(HW, TPb):
 	"""Returns the overall thermal resistance coefficient, Reff, [mK/W] for given water and lead temp [C]"""
-	return (cf1/getConvHtW(HW) + cf2 + cf3/getConvHtPb(TPb))*1.5
+	return (cf1/getConvHtW(HW) + cf2 + cf3/getConvHtPb(TPb))
 
 def getQW(Hw):
 	"""Returns the energy flow of water for given enthalpy [MW]"""
@@ -431,8 +434,8 @@ def simulate(printSol = printData, prgBar = progressBar, **kwargs):
 	
 	z = np.linspace(0, h, N)
 	if printSol:
-		plt.plot(z, Tpb, label="Final lead temp [C]")
-		plt.plot(z, Tw, label="Final water temp [C]")
+		plt.plot(z, Tpb, label="Lead temperature")
+		plt.plot(z, Tw, label="Water temperature")
 		# plt.plot(z, Hpb, label="Final lead enthalpy [J/kg]")
 		# plt.plot(z, Hw, label="Final water enthalpy [J/kg]")
 		# Qw = [mDotW*(H - Hw[0])*1e-6 for H in Hw]
@@ -442,7 +445,7 @@ def simulate(printSol = printData, prgBar = progressBar, **kwargs):
 		# plt.plot(z, Qw, label="Final water energy flow [MW]")
 		# plt.plot(z, Qtot, label="Total energy flow [MW]")
 		plt.legend()
-		plt.xlabel("z")
+		plt.xlabel("z [m]")
 		plt.ylabel("Temperature [C]")
 		plt.title("Water inflow at z=0, lead inflow at z=h=" + str(h))
 		plt.show()
@@ -476,15 +479,17 @@ def solutionIsValid(Hw, Hpb, Tw, Tpb):
 	"""Returns whether or not a given solution satisfy all the requirements on temperature, velocities,
 	cross sectional areas, power, etc."""
 	tol = 0.001
-	if Aw <= 0 or Apb <= 0 or ro*ro/(R*R)*dldz*n > 0.5:
+	if Aw <= 0 or Apb <= 0 or ro*ro/(R*R)*dldz*n > 0.36:
 		return False, 'A'
-	if abs(Tw[-1]/T1W - 1) > tol:
+	if getMaxLiquidVelocity() > 3 or uPb < -3 or uPb > -1:#or uW < 1:
 		return False, 'B'
+	if abs(Tw[-1]/T1W - 1) > tol:
+		return False, 'D'
 	if abs(Tpb[0]/T1Pb - 1) > tol:
 		return False, 'C'
-	if getMaxLiquidVelocity() > 3 or uPb < -3 or uPb > -1:#or uW < 1:
-		return False, 'D'
-	return True, str(round(uW, 2))#None
+	if dldz < 10:
+		return False, 'E'
+	return True, "{0:.2f}".format(uW)#None
 
 #def getCost():
 #	"""Returns the 'cost' of a set of parameters such as """
@@ -567,7 +572,8 @@ def searchFordxdzNewton(prgBar = progressBar, **kwargs):
 	while True:
 		updateConstants()
 		_, Hw, Hpb, Tw, Tpb = simulate(False, prgBar, method=method)
-		# approximate the derivative of H with respect to dxdz		dxdz += 0.00001
+		# approximate the derivative of H with respect to dxdz
+		dxdz += 0.00001
 		updateConstants()
 		_, dHw, _, _, _ = simulate(False, prgBar, method=method)
 		dxdz -= 0.00001
@@ -606,6 +612,7 @@ def convergenceError(**kwargs):
 	plt.scatter(vN, [d for d in simData])
 	plt.xlabel("Number of length elements, N")
 	plt.ylabel("Temperature error [C] compated to " + r'N=2000')
+	plt.tight_layout()
 	#coef = np.polyfit(vN, [np.log(abs(d)) for d in simData], 1)
 	# print(simData)
 	# print(coef)
@@ -658,12 +665,21 @@ def parameterAnalysis():
 	plt.show()
 
 def phaseDiagram():
-    """Draw the phase diagram of dHdz against H"""
-    _, Hw, Hpb, Tw, Tpb = simulate(False)
+	"""Draw the phase diagram of dHdz against H"""
+	_, Hw, Hpb, Tw, Tpb = simulate(False)
 
-    Hp = [dHWdz(TPb, TW, HW) for TPb, TW, HW in zip(Tpb, Tw, Hw)]
-    plt.scatter(Hw, Hp)
-    plt.show()
+	Hp = [dHWdz(TPb, TW, HW) for TPb, TW, HW in zip(Tpb, Tw, Hw)]
+	plt.scatter([h*1e-6 for h in Hw], [hp*1e-6 for hp in Hp], color='black', s=1)
+	plt.xlabel(r"$H$ [MJ/kg]")
+	plt.ylabel(r"$dH/dz$ [MJ/kgm]")
+	plt.tight_layout()
+	plt.show()
+	Hpp = [(Hpnext-Hp)/dz for Hpnext, Hp in zip(Hp[1:], Hp[:-1])]
+	plt.scatter([h*1e-6 for h in Hw[1:]], [hp*1e-6 for hp in Hpp], color='black', s=1)
+	plt.xlabel(r"$H$ [MJ/kg]")
+	plt.ylabel(r"$dH/dz$ [$MJ/kgm^2$]")
+	plt.tight_layout()
+	plt.show()
 
 def parameterAnalysis2D():
 	"""Simulates the system for many different parameter choises and gives a plot of which
@@ -676,16 +692,16 @@ def parameterAnalysis2D():
 	vval = []
 	verr = []
 	for i in range(dim):
-		n = 20 + i*5
+		n = 16 + i*4
 		for j in range(dim):
-			di = 6*0.001 + j*0.001
+			di = 7*0.001 + j*0.001
 			iterations = -1
 			valid, errType = searchFordxdzNewton(True, iterations=iterations, tol=1e-5)
 			progress = round((i*dim + j)*100/(dim**2), 2)
 			print(progress, "%")
 			lst.append((n, di, valid, errType))
 			vn.append(n)
-			vdi.append(di)
+			vdi.append(di*1000)
 			vval.append(valid)
 			verr.append(errType)
 	print("-- RAW DATA OUTPUT --")	
@@ -693,31 +709,32 @@ def parameterAnalysis2D():
 	fig = plt.figure(figsize=(6, 6))
 	col = ['g' if b else 'r' for b in vval]
 	size = [500 if b else 50 for b in vval]
-	shape = ['.' if e==None else '$'+e+'$' for e in verr]
+	shape = ['.' if e=='A' or e=='B' or e=='E' else '$'+e+'$' for e in verr]
 	for n_, di_, col_, size_, shape_ in zip(vn, vdi, col, size, shape):
 		plt.scatter([n_], [di_], c=col_, s=size_, alpha=0.5, marker=shape_)
 	plt.xlabel(r'$n$')
-	plt.ylabel(r'$d_i$')
-	plt.yticks([6*0.001 + j*0.001 for j in range(dim)])
-	plt.xticks([20 + i*5 for i in range(dim)])
+	plt.ylabel(r'$d_i$'+" [mm]")
+	plt.yticks([7 + j*1 for j in range(dim)])
+	plt.xticks([16 + i*4 for i in range(dim)])
 	plt.tight_layout()
+	plt.savefig("ParamAnal.png", dpi=400, quality=100, transparent=True)
 	plt.show()
 
 updateConstants()
 
-# valid, type = searchFordxdzNewton(tol=1e-10, method=RK4)
+# valid, type = searchFordxdzNewton(tol=1e-10, method=euler)
 # print("dxdz:", dxdz)
 # print(valid)
 # updateConstants()
-#simulate(True, method=RK4)
+simulate(True, method=euler)
 
-#phaseDiagram()
+# phaseDiagram()
 
-convergenceError(method=RK4)
+# convergenceError(method=euler)
 
-#parameterAnalysis()
+# parameterAnalysis()
 
-#parameterAnalysis2D()
+# parameterAnalysis2D()
 
 # Hinterval = np.linspace(HWsamp[0], HWsamp[len(HWsamp)-1], 1000)
 # PW = [getReff(H, 540) for H in Hinterval]
