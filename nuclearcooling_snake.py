@@ -239,6 +239,15 @@ kWsamp = [
 	0.092185222216949, 	0.0872445138624, 	0.084117453069393, 	0.080681703274648, 
 	0.079006161973628, 	0.080461037513768, 	0.083484892747535, 	0.089621105028219]
 
+# factor = 1.1
+# for i in range(len(HWsamp)):
+# 	TWsamp[i] *= factor
+# 	HWsamp[i] *= factor
+# 	CWsamp[i] *= factor
+# 	rhoWsamp[i] *= factor
+# 	muWsamp[i] *= factor
+# 	kWsamp[i] *= factor
+
 ## WATER PROPERTIES ##
 
 def getHW(T):
@@ -666,19 +675,32 @@ def parameterAnalysis():
 
 def phaseDiagram():
 	"""Draw the phase diagram of dHdz against H"""
-	_, Hw, Hpb, Tw, Tpb = simulate(False)
-
-	Hp = [dHWdz(TPb, TW, HW) for TPb, TW, HW in zip(Tpb, Tw, Hw)]
+	#_, Hw, Hpb, Tw, Tpb = simulate(False)
+	points = 100000
+	Hw = np.linspace(HWsamp[0], HWsamp[-1], points)
+	dH = (Hw[-1] - Hw[0])/(points-1)
+	# Hp = [dHWdz(TPb, TW, HW) for TPb, TW, HW in zip(Tpb, Tw, Hw)]
+	Hp = [dHdz(H) for H in Hw]
 	plt.scatter([h*1e-6 for h in Hw], [hp*1e-6 for hp in Hp], color='black', s=1)
 	plt.xlabel(r"$H$ [MJ/kg]")
 	plt.ylabel(r"$dH/dz$ [MJ/kgm]")
 	plt.tight_layout()
 	plt.show()
-	Hpp = [(Hpnext-Hp)/dz for Hpnext, Hp in zip(Hp[1:], Hp[:-1])]
+	# Derivative of dH/dz with respect to H
+	dHpdH = [(Hpnext-Hp)/dH for Hpnext, Hp in zip(Hp[1:], Hp[:-1])]
+	plt.scatter([h*1e-6 for h in Hw[1:]], [hp for hp in dHpdH], color='black', s=1)
+	plt.xlabel(r"$H$ [MJ/kg]")
+	plt.ylabel(r"$dH'(z)/dH$ [1/m]")
+	plt.ylim(-15, 20)
+	plt.tight_layout()
+	plt.show()
+	# Second derivative of H with respect to z
+	Hpp = [Hp*(Hpnext-Hp)/dH for Hpnext, Hp in zip(Hp[1:], Hp[:-1])]
 	plt.scatter([h*1e-6 for h in Hw[1:]], [hp*1e-6 for hp in Hpp], color='black', s=1)
 	plt.xlabel(r"$H$ [MJ/kg]")
-	plt.ylabel(r"$dH/dz$ [$MJ/kgm^2$]")
+	plt.ylabel(r"$d^2H/dz^2$ [$MJ/kgm^2$]")
 	plt.tight_layout()
+	plt.ylim(-50, 60)
 	plt.show()
 
 def parameterAnalysis2D():
@@ -726,9 +748,9 @@ updateConstants()
 # print("dxdz:", dxdz)
 # print(valid)
 # updateConstants()
-simulate(True, method=euler)
+# simulate(True, method=euler)
 
-# phaseDiagram()
+phaseDiagram()
 
 # convergenceError(method=euler)
 
