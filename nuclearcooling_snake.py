@@ -677,13 +677,15 @@ def phaseDiagram():
 	"""Draw the phase diagram of dHdz against H"""
 	#_, Hw, Hpb, Tw, Tpb = simulate(False)
 	points = 100000
-	Hw = np.linspace(HWsamp[0], HWsamp[-1], points)
+	Hw = np.linspace(0.5e6, 3e6, points)
 	dH = (Hw[-1] - Hw[0])/(points-1)
 	# Hp = [dHWdz(TPb, TW, HW) for TPb, TW, HW in zip(Tpb, Tw, Hw)]
 	Hp = [dHdz(H) for H in Hw]
-	plt.scatter([h*1e-6 for h in Hw], [hp*1e-6 for hp in Hp], color='black', s=1)
-	plt.xlabel(r"$H$ [MJ/kg]")
-	plt.ylabel(r"$dH/dz$ [MJ/kgm]")
+	plt.figure(figsize=(6, 6))
+	plt.scatter([h*1e-6 for h in Hw], [hp*1e-6 for hp in Hp], s=1)
+	# plt.xlabel(r"$H$ [MJ/kg]")
+	# plt.ylabel(r"$dH/dz$ [MJ/kgm]")
+	# plt.savefig("derivative.png", dpi=400, quality=100, transparent=True)
 	plt.tight_layout()
 	plt.show()
 	# Derivative of dH/dz with respect to H
@@ -748,9 +750,9 @@ updateConstants()
 # print("dxdz:", dxdz)
 # print(valid)
 # updateConstants()
-# simulate(True, method=euler)
+simulate(True, method=euler)
 
-phaseDiagram()
+# phaseDiagram()
 
 # convergenceError(method=euler)
 
