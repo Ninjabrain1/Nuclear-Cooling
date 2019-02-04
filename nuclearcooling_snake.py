@@ -653,8 +653,8 @@ def parameterAnalysis2D():
 updateConstants()
 
 # Calculate the correct tube slope for the given parameters
-valid, type = searchFordxdzNewton(tol=1e-10, method=euler)
-updateConstants()
+# valid, type = searchFordxdzNewton(tol=1e-10, method=euler)
+# updateConstants()
 # Simulate the steam generator
 simulate(True, method=euler)
 
